@@ -108,7 +108,6 @@ def part1():
     while not battlefield.combat_finished():
         battlefield.perform_round()
         rounds += 1
-    print(rounds - 1)
     return battlefield.total_hp() * (rounds - 1)
 
 def part2():
@@ -128,18 +127,11 @@ def part2():
         step //= 2
     final_attack = attack + 1
 
-    print(final_attack)
-
     battlefield, rounds = get_map(), 0
     battlefield.set_elf_attack(final_attack)
     while not battlefield.combat_finished():
-        print(battlefield)
-        print([unit.hp for line in battlefield.units for unit in line if unit is not None])
         battlefield.perform_round()
         rounds += 1
-    print(battlefield)
-    print([unit.hp for line in battlefield.units for unit in line if unit is not None])
-    print(rounds - 1)
     return battlefield.total_hp() * (rounds - 1)
 
 print(part1())

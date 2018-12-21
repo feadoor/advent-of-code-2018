@@ -24,7 +24,7 @@ def parse_point(point_str):
     )
 
 def get_points():
-    with open('data/10a.txt', 'r') as f:
+    with open('data/10.txt', 'r') as f:
         return [parse_point(line) for line in f]
 
 def moved(points, ticks):
