@@ -1,4 +1,5 @@
 from collections import namedtuple
+from operator import itemgetter
 import re
 
 bot_regex = re.compile('pos=<([^,]+),([^,]+),([^>]+)>, r=(\d+)')
@@ -12,10 +13,7 @@ class Bot:
         self.r = r
 
     def distance_to(self, other):
-        return self.distance_to_point(other.pos)
-
-    def distance_to_point(self, point):
-        return sum(abs(c1 - c2) for c1, c2 in zip(self.pos, point))
+        return sum(abs(c1 - c2) for c1, c2 in zip(self.pos, other.pos))
 
     def in_range_of(self, cube):
         dx = 0 if cube.x <= self.pos[0] <= cube.x + cube.length else min(abs(cube.x - self.pos[0]), abs(cube.x + cube.length - self.pos[0]))
@@ -38,16 +36,8 @@ def bots_in_range_of_strongest_bot(bots):
     strongest_bot = max(bots, key=lambda bot: bot.r)
     return sum(1 if strongest_bot.distance_to(bot) <= strongest_bot.r else 0 for bot in bots)
 
-def regions_in_range_of_most_bots(cube, granularity, bots):
-    best_hits, best_cubes = 0, []
-    for x in range(cube.x, cube.x + cube.length, granularity or 1):
-        for y in range(cube.y, cube.y + cube.length, granularity or 1):
-            for z in range(cube.z, cube.z + cube.length, granularity or 1):
-                test_cube = Cube(x, y, z, granularity)
-                hits = sum(1 if bot.in_range_of(test_cube) else 0 for bot in bots)
-                if hits > best_hits: best_hits, best_cubes = hits, []
-                if hits == best_hits: best_cubes.append(test_cube)
-    return best_hits, best_cubes
+def bots_in_range_of(cube, bots):
+    return sum(1 if bot.in_range_of(cube) else 0 for bot in bots)
 
 def bounding_box(bots):
     lx_bot = min(bots, key=lambda bot: bot.pos[0] - bot.r)
@@ -72,21 +62,46 @@ def power_of_two_above(n):
         n, count = n >> 1, count + 1
     return 1 << count
 
-def point_in_range_of_most_bots(bots):
+def lower_bound_for_bots_in_range_of_single_point(bots):
     bounds = bounding_box(bots)
     granularity = power_of_two_above(max(bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]))
-    regions = [Cube(bounds[0], bounds[1], bounds[2], granularity)]
+    regions, best_hits = [Cube(bounds[0], bounds[1], bounds[2], granularity)], 0
 
     while granularity > 0:
         granularity, next_regions, best_hits = granularity // 2, [], 0
         for region in regions:
-            hits, subregions = regions_in_range_of_most_bots(region, granularity, bots)
-            if hits > best_hits: next_regions, best_hits = [], hits
-            if hits == best_hits: next_regions += subregions
+            for x in range(region.x, region.x + region.length, granularity or 1):
+                for y in range(region.y, region.y + region.length, granularity or 1):
+                    for z in range(region.z, region.z + region.length, granularity or 1):
+                        subregion = Cube(x, y, z, granularity)
+                        hits = bots_in_range_of(subregion, bots)
+                        if hits > best_hits: next_regions, best_hits = [], hits
+                        if hits == best_hits: next_regions.append(subregion)
         regions = next_regions
 
-    points = [(r.x, r.y, r.z) for r in regions]
-    return min(points, key=lambda point: sum(abs(c) for c in point))
+    return best_hits
+
+def point_in_range_of_most_bots(bots):
+    hits_lb = lower_bound_for_bots_in_range_of_single_point(bots)
+
+    bounds = bounding_box(bots)
+    granularity = power_of_two_above(max(bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]))
+    regions = [(len(bots), Cube(bounds[0], bounds[1], bounds[2], granularity))]
+
+    while granularity > 0:
+        granularity, next_regions = granularity // 2, []
+        for _, region in regions:
+            for x in range(region.x, region.x + region.length, granularity or 1):
+                for y in range(region.y, region.y + region.length, granularity or 1):
+                    for z in range(region.z, region.z + region.length, granularity or 1):
+                        subregion = Cube(x, y, z, granularity)
+                        hits = bots_in_range_of(subregion, bots)
+                        if hits >= hits_lb: next_regions.append((hits, subregion))
+        regions = next_regions
+
+    best_hits = max(regions, key=itemgetter(0))[0]
+    best_points = [(r.x, r.y, r.z) for hits, r in regions if hits == best_hits]
+    return min(best_points, key=lambda point: sum(abs(c) for c in point))
 
 bots = get_bots()
 print(bots_in_range_of_strongest_bot(bots))
